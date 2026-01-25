@@ -153,6 +153,13 @@ run_command "opam update --yes"
 # Update the current shell environment to use the new switch
 eval $(opam env)
 
+# On Apple Silicon, prioritize arm64 Homebrew paths for pkg-config
+# This ensures graphics and other packages find the correct architecture libraries
+if [[ "$OSTYPE" == "darwin"* ]] && [[ "$(uname -m)" == "arm64" ]]; then
+    echo "Configuring pkg-config paths for Apple Silicon..."
+    export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:$PKG_CONFIG_PATH"
+fi
+
 # Verify which switch we're actually in
 echo "Current switch: $(opam switch show)"
 
@@ -161,11 +168,12 @@ installed_packages=$(opam list --installed --switch="$SWITCH_NAME" --short 2>/de
 
 # Define base packages (always needed)
 base_packages=(
-    "graphics"
+    "graphics.5.1.2"
     "ocamlbuild"
     "ocamlfind"
     "yojson"
     "cohttp-lwt-unix"
+    "tls-lwt"
     "merlin"
     "utop"
     "menhir"
@@ -204,6 +212,14 @@ fi
 # ANSITerminal: CS51 fork with CI environment color support (rebased on OCaml 5.x compatible upstream)
 run_command "opam pin add ANSITerminal https://github.com/cs51-staff/ANSITerminal.git#master -y"
 run_command "opam pin add CS51Utils https://github.com/cs51/utils.git -y"
+
+# Install cs51-staff-utils in dev mode
+if [ "$INSTALL_DEV_TOOLS" = true ]; then
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    STAFF_UTILS_DIR="$(dirname "$SCRIPT_DIR")"
+    echo "Installing cs51-staff-utils from local directory..."
+    run_command "opam install -y $STAFF_UTILS_DIR"
+fi
 
 # Install or setup Visual Studio Code
 if [[ "$OSTYPE" == "darwin"* ]]; then

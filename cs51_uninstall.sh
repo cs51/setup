@@ -105,8 +105,9 @@ done
 if [ "$REMOVE_OPAM" = true ] && command_exists opam; then
     echo ""
     echo "Removing OPAM and all OCaml versions..."
-    run_command "opam switch remove -a -y"
+    # Remove all opam data (this removes all switches)
     run_command "rm -rf ~/.opam"
+    # Uninstall opam binary
     if [[ "$OSTYPE" == "darwin"* ]]; then
         run_command "brew uninstall opam"
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
