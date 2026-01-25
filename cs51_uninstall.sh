@@ -16,8 +16,10 @@
 #   -remove-vscode   Also remove Visual Studio Code (use with caution).
 #   -remove-opam     Also remove OPAM completely (removes all switches).
 #
-# Note: This script may require administrator privileges to remove
-#       certain components.
+# Note: This script requires user confirmation before proceeding as a safety
+#       measure. It may also require administrator privileges to remove
+#       certain components. System-wide tools (git, build tools, libraries)
+#       are NOT removed as they may be used by other projects.
 
 # Initialize flags
 DRY_RUN=false
@@ -54,13 +56,33 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-echo "Warning: This script will uninstall the CS51 OCaml development environment."
-echo "It will remove the 'cs51' opam switch and clean up shell configurations."
+echo "========================================"
+echo "CS51 OCaml Environment Uninstaller"
+echo "========================================"
+echo ""
+echo "This script will remove the following:"
+echo "  • CS51 opam switch (OCaml 5.2.1 and packages)"
+echo "  • Shell configuration additions (backups will be created)"
+echo ""
 if [ "$REMOVE_OPAM" = true ]; then
-    echo "⚠️  WARNING: -remove-opam flag set. This will remove OPAM and ALL switches!"
+    echo "⚠️  WARNING: -remove-opam flag is set. This will ALSO remove:"
+    echo "  • OPAM package manager (ALL switches, not just cs51)"
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "  • System OCaml packages (if installed via apt)"
+    fi
+    echo ""
 fi
 if [ "$REMOVE_VSCODE" = true ]; then
-    echo "⚠️  WARNING: -remove-vscode flag set. This will remove Visual Studio Code!"
+    echo "⚠️  WARNING: -remove-vscode flag is set. This will ALSO remove:"
+    echo "  • Visual Studio Code application"
+    echo "  • VS Code configuration and extensions"
+    echo ""
+fi
+echo "System-wide tools will NOT be removed:"
+echo "  • git, build tools (gcc, make, etc.)"
+echo "  • System libraries (libgmp-dev, X11 libraries, etc.)"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "  • Homebrew, XQuartz"
 fi
 echo ""
 read -p "Are you sure you want to continue? (y/N) " -n 1 -r
@@ -129,7 +151,7 @@ if [ "$REMOVE_VSCODE" = true ]; then
         run_command "rm -rf '/Applications/Visual Studio Code.app'"
         run_command "rm -rf '$HOME/Library/Application Support/Code'"
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        run_command "sudo apt-get remove --auto-remove code"
+        run_command "sudo apt-get remove --auto-remove -y code"
         run_command "rm -rf '$HOME/.config/Code'"
         run_command "rm -rf '$HOME/.vscode'"
     fi
@@ -161,6 +183,15 @@ if [ "$REMOVE_VSCODE" = true ]; then
 fi
 if [ "$REMOVE_OPAM" = true ]; then
     echo "  ✓ OPAM and all switches"
+fi
+echo ""
+echo "What was NOT removed (system-wide tools):"
+echo "  • git (may be used by other projects)"
+echo "  • System libraries (libgmp-dev, X11 libraries, etc.)"
+echo "  • Build tools (gcc, make, etc.)"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "  • Homebrew"
+    echo "  • XQuartz"
 fi
 echo ""
 echo "Next steps:"

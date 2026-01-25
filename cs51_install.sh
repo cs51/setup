@@ -20,16 +20,17 @@
 # What this script does:
 # 1. Checks and installs Xcode Command Line Tools (on macOS only)
 # 2. Checks and installs Homebrew (on macOS only)
-# 3. Installs OPAM if not already present
-# 4. Initializes OPAM
-# 5. Creates and switches to the CS51 opam switch (OCaml version {{OCAML_VERSION}})
-# 6. Installs required OCaml packages (idempotent - skips already installed)
-# 7. Installs CS51Utils and ANSITerminal
-# 8. Installs or sets up Visual Studio Code
-# 9. Installs OCaml Platform extension for VSCode
-# 10. Sets up persistent opam environment in shell config
-# 11. Verifies the OCaml installation
-# 12. Runs a graphics check
+# 3. Installs git and build tools if not already present
+# 4. Installs OPAM if not already present
+# 5. Initializes OPAM
+# 6. Creates and switches to the CS51 opam switch (OCaml version {{OCAML_VERSION}})
+# 7. Installs required OCaml packages (idempotent - skips already installed)
+# 8. Installs CS51Utils and ANSITerminal
+# 9. Installs or sets up Visual Studio Code
+# 10. Installs OCaml Platform extension for VSCode
+# 11. Sets up persistent opam environment in shell config
+# 12. Verifies the OCaml installation
+# 13. Runs a graphics check
 #
 # Note: This script is idempotent - it can be run multiple times safely.
 #       It requires an internet connection and may take some time to complete.
@@ -59,6 +60,12 @@ SWITCH_NAME="cs51"
 # Initialize flags
 DRY_RUN=false
 INSTALL_DEV_TOOLS=false
+
+# Set environment variables for non-interactive installations
+export OPAMYES=1  # Auto-answer yes to opam prompts
+export OPAMCONFIRMLEVEL=unsafe-yes  # Be maximally non-interactive
+export DEBIAN_FRONTEND=noninteractive  # Make apt-get non-interactive
+export APT_LISTCHANGES_FRONTEND=none  # Suppress apt changelog prompts
 
 # Suppress opam update warnings (informational only, not errors)
 export OPAMNOTES=0
@@ -122,21 +129,47 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     fi
 fi
 
-# Install OPAM
-if ! command_exists opam; then
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        run_command "brew install opam"
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        run_command "sudo apt-get update"
-        run_command "sudo apt-get install opam"
+# Install prerequisites and OPAM
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS: Install git and opam via Homebrew
+    if ! command_exists git; then
+        echo "Installing git..."
+        run_command "brew install git"
     else
-        echo "Unsupported operating system. Please install OPAM manually."
-        exit 1
+        echo "git is already installed."
     fi
+    
+    if ! command_exists opam; then
+        run_command "brew install opam"
+    else
+        echo "opam is already installed."
+    fi
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Linux: Install build tools, git, X11 libraries, and opam
+    echo "Installing required packages for Linux..."
+    run_command "sudo apt-get update"
+    # Install system dependencies needed by OCaml packages
+    # libgmp-dev: Required by zarith (needed by mirage-crypto-pk, tls, etc.)
+    run_command "sudo apt-get install -y gcc make patch unzip m4 git xorg libx11-dev libxft-dev pkg-config libgmp-dev opam"
+else
+    echo "Unsupported operating system. Please install OPAM manually."
+    exit 1
 fi
 
 # Initialize OPAM
-run_command "opam init -a"
+# Detect if running in a container (Docker, etc.) where sandboxing won't work
+# Also check if running as root (common in containers)
+OPAM_INIT_FLAGS="-a"
+if [ -f /.dockerenv ] || [ -f /run/.containerenv ] || [ "$(id -u)" -eq 0 ]; then
+    echo "Detected container environment or root user, disabling opam sandboxing..."
+    OPAM_INIT_FLAGS="$OPAM_INIT_FLAGS --disable-sandboxing"
+fi
+run_command "opam init $OPAM_INIT_FLAGS"
+
+# Configure opam to automatically handle system dependencies without prompting
+echo "Configuring opam to auto-install system dependencies..."
+run_command "opam option depext-run-installs=true --yes --global"
+run_command "opam option depext-bypass=[] --yes --global"
 
 # Check if switch already exists
 if opam switch list | grep -q "^. *$SWITCH_NAME"; then
@@ -203,7 +236,7 @@ done
 # Install only missing packages
 if [ ${#packages_to_install[@]} -gt 0 ]; then
     echo "Installing missing packages: ${packages_to_install[*]}"
-    run_command "opam install -y ${packages_to_install[*]}"
+    run_command "opam install -y --assume-depexts ${packages_to_install[*]}"
 else
     echo "✓ All required packages are already installed"
 fi
@@ -254,14 +287,19 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         export PATH="$PATH:$VSCODE_PATH"
     fi
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    if ! command_exists code; then
+    # Skip VSCode installation in containers (won't work without display)
+    if [ -f /.dockerenv ] || [ -f /run/.containerenv ]; then
+        echo "⚠️  Skipping VSCode installation (running in container)"
+    elif ! command_exists code; then
         echo "Installing Visual Studio Code..."
-        run_command "sudo apt-get install software-properties-common apt-transport-https wget gpg"
+        # Detect architecture
+        ARCH=$(dpkg --print-architecture)
+        run_command "sudo apt-get install -y software-properties-common apt-transport-https wget gpg"
         # Use new signed-by method instead of deprecated apt-key
         run_command "wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/packages.microsoft.gpg > /dev/null"
-        run_command "echo \"deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main\" | sudo tee /etc/apt/sources.list.d/vscode.list"
+        run_command "echo \"deb [arch=$ARCH signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main\" | sudo tee /etc/apt/sources.list.d/vscode.list"
         run_command "sudo apt-get update"
-        run_command "sudo apt-get install code"
+        run_command "sudo apt-get install -y code"
     else
         echo "Visual Studio Code is already installed."
     fi
@@ -295,7 +333,11 @@ echo ""
 echo "=========================================="
 echo "Graphics Check"
 echo "=========================================="
-if command_exists cs51-graphics-check; then
+# Skip graphics check in containers (no display available)
+if [ -f /.dockerenv ] || [ -f /run/.containerenv ]; then
+    echo "⚠️  Skipping graphics check (running in container without display)"
+    echo ""
+elif command_exists cs51-graphics-check; then
     echo "Opening graphics test window..."
     opam exec -- cs51-graphics-check &
     GRAPHICS_PID=$!
@@ -303,7 +345,7 @@ if command_exists cs51-graphics-check; then
     echo "✓ Look for a small window with a white exclamation mark on a red background."
     echo "  If you see it, your graphics are working correctly!"
     echo "  You can close it by clicking the window and pressing any key."
-    echo "  (The setup will continue...)"
+    echo "  The setup will continue..."
     echo ""
 else
     echo "⚠️  Note: Skipping graphics check (cs51-graphics-check not installed)"
