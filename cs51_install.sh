@@ -205,6 +205,12 @@ base_packages=(
     "ocamlbuild"
     "ocamlfind"
     "yojson"
+    # Pin digestif to 1.1.2 because version 1.3.0 has a broken package structure
+    # for ocamlbuild. The main digestif package in 1.3.0 has no compiled archives
+    # (archive(byte) = ""), only subpackages digestif.c and digestif.ocaml do.
+    # This causes "Module Digestif is unavailable (required by Pbkdf)" errors
+    # when linking with ocamlbuild. Dune handles this correctly, but ocamlbuild does not.
+    "digestif.1.1.2"
     "cohttp-lwt-unix"
     "tls-lwt"
     "merlin"
