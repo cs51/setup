@@ -46,7 +46,7 @@ This will install:
 For convenience, you can run the setup script directly:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/cs51/cs51-setup/main/cs51_install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/cs51/setup/main/cs51_install.sh)"
 ```
 
 ## System Requirements
