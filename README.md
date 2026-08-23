@@ -13,7 +13,7 @@ Run the setup script to install everything you need for CS51:
 This will install:
 - OPAM (OCaml Package Manager)
 - OCaml 5.2.1 in a dedicated `cs51` switch
-- Required packages (graphics, yojson, cohttp-lwt-unix, merlin, utop, menhir)
+- Required packages (graphics, ocamlbuild, ocamlfind, yojson, digestif, cohttp-lwt-unix, tls-lwt, merlin, utop, menhir)
 - CS51Utils library
 - ANSITerminal (CS51 fork)
 - Visual Studio Code with OCaml Platform extension

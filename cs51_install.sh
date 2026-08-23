@@ -252,12 +252,21 @@ fi
 run_command "opam pin add ANSITerminal https://github.com/cs51-staff/ANSITerminal.git#master -y"
 run_command "opam pin add CS51Utils https://github.com/cs51/utils.git -y"
 
-# Install cs51-staff-utils in dev mode
+# Install cs51-staff-utils in dev mode. If this script is running from
+# staff-utils/scripts/ (a local staff-utils checkout), install from that
+# local directory so staff can iterate on it live; otherwise (e.g. a
+# standalone Setup clone) pin it from GitHub instead, since there's no
+# local checkout to install from.
 if [ "$INSTALL_DEV_TOOLS" = true ]; then
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     STAFF_UTILS_DIR="$(dirname "$SCRIPT_DIR")"
-    echo "Installing cs51-staff-utils from local directory..."
-    run_command "opam install -y $STAFF_UTILS_DIR"
+    if [ -f "$STAFF_UTILS_DIR/cs51-staff-utils.opam" ]; then
+        echo "Installing cs51-staff-utils from local directory..."
+        run_command "opam install -y $STAFF_UTILS_DIR"
+    else
+        echo "Installing cs51-staff-utils from GitHub (no local staff-utils checkout found)..."
+        run_command "opam pin add cs51-staff-utils https://github.com/CS51-Staff/staff-utils.git -y"
+    fi
 fi
 
 # Install or setup Visual Studio Code
