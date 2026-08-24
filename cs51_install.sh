@@ -23,7 +23,7 @@
 # 3. Installs git and build tools if not already present
 # 4. Installs OPAM if not already present
 # 5. Initializes OPAM
-# 6. Creates and switches to the CS51 opam switch (OCaml version {{OCAML_VERSION}})
+# 6. Creates and switches to the CS51 opam switch (see OCAML_VERSION below)
 # 7. Installs required OCaml packages (idempotent - skips already installed)
 # 8. Installs CS51Utils and ANSITerminal
 # 9. Installs or sets up Visual Studio Code
@@ -91,7 +91,6 @@ run_command() {
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
-
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -143,6 +142,18 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         run_command "brew install opam"
     else
         echo "opam is already installed."
+    fi
+
+    # Install system dependencies needed by OCaml packages below (conf-pkg-config,
+    # conf-gmp, conf-libX11 via the graphics package). Installing these explicitly
+    # rather than relying on opam's depext auto-install keeps this reliable even
+    # if that mechanism doesn't handle the xquartz cask on a given opam version.
+    echo "Installing system dependencies (pkg-config, gmp, XQuartz)..."
+    run_command "brew install pkg-config pkgconf gmp"
+    if [ ! -d "/opt/X11" ]; then
+        run_command "brew install --cask xquartz"
+    else
+        echo "XQuartz is already installed."
     fi
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Linux: Install build tools, git, X11 libraries, and opam
@@ -344,6 +355,11 @@ echo "Verifying OCaml installation..."
 run_command "opam exec -- ocaml -version"
 
 # Run graphics check
+# GRAPHICS_OK tracks the outcome so the final summary can report it honestly
+# instead of always declaring success. It stays "true" when the check is
+# skipped (container, or cs51-graphics-check missing) since there's nothing
+# to report as failed in those cases.
+GRAPHICS_OK=true
 echo ""
 echo "=========================================="
 echo "Graphics Check"
@@ -354,13 +370,23 @@ if [ -f /.dockerenv ] || [ -f /run/.containerenv ]; then
     echo ""
 elif command_exists cs51-graphics-check; then
     echo "Opening graphics test window..."
-    opam exec -- cs51-graphics-check &
-    GRAPHICS_PID=$!
     echo ""
-    echo "✓ Look for a small window with a white exclamation mark on a red background."
-    echo "  If you see it, your graphics are working correctly!"
-    echo "  You can close it by clicking the window and pressing any key."
-    echo "  The setup will continue..."
+    echo "Look for a small window with a white exclamation mark on a red background."
+    echo "Click the window and press any key to close it."
+    echo ""
+    # Run in the foreground (not backgrounded) so we can check the exit code
+    # and report a real result instead of always claiming success.
+    if opam exec -- cs51-graphics-check; then
+        echo ""
+        echo "✓ Graphics check passed!"
+    else
+        GRAPHICS_OK=false
+        echo ""
+        echo "⚠️  Graphics check failed."
+        echo "  This is common on a freshly set up Mac: XQuartz's graphics server"
+        echo "  needs a full logout/login (or restart) before it's available for"
+        echo "  the very first time, even though it's now installed."
+    fi
     echo ""
 else
     echo "⚠️  Note: Skipping graphics check (cs51-graphics-check not installed)"
@@ -393,11 +419,21 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Setup complete!"
+if [ "$GRAPHICS_OK" = true ]; then
+    echo "Setup complete!"
+else
+    echo "Setup mostly complete -- graphics check needs another look"
+fi
 echo "=========================================="
 echo ""
 echo "The CS51 OCaml environment (opam switch '$SWITCH_NAME') is ready!"
 echo ""
+if [ "$GRAPHICS_OK" = false ]; then
+    echo "IMPORTANT: The graphics check above failed. Please log out and log back"
+    echo "in (or restart your computer), then run this to confirm it's fixed:"
+    echo "    opam exec -- cs51-graphics-check"
+    echo ""
+fi
 echo "IMPORTANT: Please restart your terminal for all changes to take effect."
 echo ""
 echo "The opam environment will be automatically activated when you open a new terminal."
