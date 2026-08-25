@@ -375,9 +375,15 @@ elif command_exists cs51-graphics-check; then
         GRAPHICS_OK=false
         echo ""
         echo "⚠️  Graphics check failed."
-        echo "  This is common on a freshly set up Mac: XQuartz's graphics server"
-        echo "  needs a full logout/login (or restart) before it's available for"
-        echo "  the very first time, even though it's now installed."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            echo "  This is common on a freshly set up Mac: XQuartz's graphics server"
+            echo "  needs a full logout/login (or restart) before it's available for"
+            echo "  the very first time, even though it's now installed."
+        else
+            echo "  Make sure you're running this from a terminal inside your logged-in"
+            echo "  desktop session; not over SSH, and not before you've logged in."
+            echo "  A running desktop session provides the display that this check needs."
+        fi
     fi
     echo ""
 else
